@@ -1,0 +1,1169 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Alita — Your AI Partner</title>
+  <meta name="description" content="Alita, your personal AI partner." />
+  <meta name="theme-color" content="#050510" />
+  <link rel="manifest" href="/static/manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Alita" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="/static/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --bg: #050510;
+      --surface: #0c0c20;
+      --surface2: #12122e;
+      --border: rgba(139, 92, 246, .18);
+      --accent: #8b5cf6;
+      --accent2: #a78bfa;
+      --pink: #ec4899;
+      --glow: rgba(139, 92, 246, .3);
+      --alita-bg: #0f0f28;
+      --text: #e2e0f0;
+      --muted: #6b6890;
+      --radius: 18px;
+      --red: #ef4444;
+      --green: #22c55e;
+    }
+
+    html,
+    body {
+      height: 100%;
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      overflow: hidden
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      height: 100dvh;
+      max-width: 860px;
+      margin: 0 auto
+    }
+
+    /* HEADER */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 20px;
+      background: linear-gradient(180deg, var(--surface) 0%, transparent 100%);
+      border-bottom: 1px solid var(--border);
+      z-index: 20
+    }
+
+    .avatar {
+      position: relative;
+      width: 46px;
+      height: 46px;
+      flex-shrink: 0
+    }
+
+    .avatar-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      background: linear-gradient(135deg, var(--accent), var(--pink)) border-box;
+      mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      -webkit-mask-composite: destination-out;
+      animation: spin 6s linear infinite
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .avatar-inner {
+      position: absolute;
+      inset: 4px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6d28d9, #be185d);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: 0 0 24px var(--glow)
+    }
+
+    .avatar-pulse {
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      background: var(--accent);
+      opacity: 0;
+      animation: pulse-g 2.5s ease-in-out infinite
+    }
+
+    @keyframes pulse-g {
+
+      0%,
+      100% {
+        transform: scale(1);
+        opacity: 0
+      }
+
+      50% {
+        transform: scale(1.15);
+        opacity: .12
+      }
+    }
+
+    .header-info {
+      flex: 1;
+      min-width: 0
+    }
+
+    .header-name {
+      font-size: 17px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent2), #f0abfc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 8px #22c55e;
+      animation: blink 2s ease-in-out infinite;
+      display: inline-block
+    }
+
+    @keyframes blink {
+      50% {
+        opacity: .4
+      }
+    }
+
+    .sub {
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .controls {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end
+    }
+
+    .ctrl {
+      padding: 5px 10px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: 11px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all .2s;
+      user-select: none
+    }
+
+    .ctrl:hover {
+      border-color: var(--accent);
+      color: var(--accent2)
+    }
+
+    .ctrl.on {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff
+    }
+
+    .ctrl.live {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+      box-shadow: 0 0 12px rgba(34, 197, 94, .4)
+    }
+
+    .mem {
+      padding: 4px 10px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      font-size: 10px;
+      color: var(--muted);
+      white-space: nowrap
+    }
+
+    .mem span {
+      color: var(--accent2);
+      font-weight: 600
+    }
+
+    /* CHAT */
+    .chat {
+      overflow-y: auto;
+      padding: 20px 20px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch
+    }
+
+    .chat::-webkit-scrollbar {
+      width: 3px
+    }
+
+    .chat::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px
+    }
+
+    .welcome {
+      text-align: center;
+      padding: 48px 24px;
+      animation: fadein .6s ease
+    }
+
+    .welcome-orb {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      margin: 0 auto 20px;
+      background: linear-gradient(135deg, #6d28d9, #be185d);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      box-shadow: 0 0 40px rgba(139, 92, 246, .4);
+      animation: float 3.5s ease-in-out infinite
+    }
+
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0)
+      }
+
+      50% {
+        transform: translateY(-12px)
+      }
+    }
+
+    .welcome h2 {
+      font-size: 26px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, var(--accent2), #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent
+    }
+
+    .welcome p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      max-width: 340px;
+      margin: 0 auto
+    }
+
+    .msg {
+      max-width: 78%;
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 14.5px;
+      line-height: 1.6;
+      animation: fadein .25s cubic-bezier(.16, 1, .3, 1);
+      word-wrap: break-word
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(.97)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1)
+      }
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, #4c1d95, #6d28d9);
+      border-bottom-right-radius: 4px;
+      color: #f0eef8
+    }
+
+    .msg.alita {
+      align-self: flex-start;
+      background: var(--alita-bg);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px
+    }
+
+    .msg-time {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 5px
+    }
+
+    .msg.user .msg-time {
+      text-align: right
+    }
+
+    .replay-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(139, 92, 246, .15);
+      border: 1px solid rgba(139, 92, 246, .25);
+      padding: 3px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      color: var(--accent2);
+      cursor: pointer;
+      margin-top: 7px;
+      transition: all .2s
+    }
+
+    .replay-btn:hover {
+      background: rgba(139, 92, 246, .3)
+    }
+
+    .replay-btn.playing {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent)
+    }
+
+    .typing {
+      align-self: flex-start;
+      display: none;
+      gap: 6px;
+      padding: 16px 20px;
+      align-items: center;
+      background: var(--alita-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      border-bottom-left-radius: 4px
+    }
+
+    .typing.show {
+      display: flex
+    }
+
+    .typing-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent2);
+      animation: bounce 1.2s ease-in-out infinite
+    }
+
+    .typing-dot:nth-child(2) {
+      animation-delay: .15s
+    }
+
+    .typing-dot:nth-child(3) {
+      animation-delay: .3s
+    }
+
+    @keyframes bounce {
+
+      0%,
+      60%,
+      100% {
+        transform: translateY(0);
+        opacity: .4
+      }
+
+      30% {
+        transform: translateY(-7px);
+        opacity: 1
+      }
+    }
+
+    .speak-pill {
+      position: fixed;
+      bottom: 96px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--pink));
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 6px 30px rgba(139, 92, 246, .5);
+      z-index: 100;
+      animation: fadein .3s ease
+    }
+
+    .speak-pill.show {
+      display: flex
+    }
+
+    .wave {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+      height: 18px
+    }
+
+    .wave span {
+      width: 3px;
+      background: #fff;
+      border-radius: 2px;
+      animation: wave-a .7s ease-in-out infinite
+    }
+
+    .wave span:nth-child(1) {
+      height: 8px;
+      animation-delay: 0s
+    }
+
+    .wave span:nth-child(2) {
+      height: 15px;
+      animation-delay: .1s
+    }
+
+    .wave span:nth-child(3) {
+      height: 10px;
+      animation-delay: .2s
+    }
+
+    .wave span:nth-child(4) {
+      height: 16px;
+      animation-delay: .3s
+    }
+
+    .wave span:nth-child(5) {
+      height: 6px;
+      animation-delay: .4s
+    }
+
+    @keyframes wave-a {
+
+      0%,
+      100% {
+        transform: scaleY(.5)
+      }
+
+      50% {
+        transform: scaleY(1.2)
+      }
+    }
+
+    .bottom.live-active {
+      box-shadow: 0 0 30px rgba(34, 197, 94, .15) inset
+    }
+
+    .live-status {
+      display: none;
+      text-align: center;
+      padding: 4px 0;
+      font-size: 11px;
+      color: var(--green);
+      font-weight: 500;
+      animation: fadein .2s ease
+    }
+
+    .live-status.show {
+      display: block
+    }
+
+    .install-banner {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      margin: 0 20px 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      animation: fadein .3s ease
+    }
+
+    .install-banner.show {
+      display: flex
+    }
+
+    .install-banner p {
+      flex: 1;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4
+    }
+
+    .install-banner strong {
+      color: var(--accent2)
+    }
+
+    .install-banner .close-ib {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 18px
+    }
+
+    /* iOS tap-to-continue overlay */
+    .ios-tap {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(5, 5, 16, .85);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      animation: fadein .3s ease;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .ios-tap.show {
+      display: flex
+    }
+
+    .ios-tap-circle {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: var(--green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      box-shadow: 0 0 40px rgba(34, 197, 94, .5);
+      animation: pulse-ios 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-ios {
+
+      0%,
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 40px rgba(34, 197, 94, .5)
+      }
+
+      50% {
+        transform: scale(1.1);
+        box-shadow: 0 0 60px rgba(34, 197, 94, .7)
+      }
+    }
+
+    .ios-tap p {
+      color: var(--accent2);
+      font-size: 15px;
+      font-weight: 500
+    }
+
+    .bottom {
+      padding: 8px 16px 20px;
+      background: linear-gradient(0deg, var(--surface) 70%, transparent);
+      transition: box-shadow .3s
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      justify-content: center;
+      padding-bottom: 10px
+    }
+
+    .chip {
+      padding: 7px 15px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      font-size: 12.5px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap
+    }
+
+    .chip:hover {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      transform: translateY(-1px)
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end
+    }
+
+    .mic-wrap {
+      position: relative;
+      flex-shrink: 0
+    }
+
+    .mic-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      color: #fff;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all .2s;
+      position: relative;
+      z-index: 1
+    }
+
+    .mic-btn:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 16px var(--glow)
+    }
+
+    .mic-btn.active {
+      background: var(--red);
+      border-color: var(--red);
+      box-shadow: 0 0 24px rgba(239, 68, 68, .5);
+      animation: mic-p 1s ease-in-out infinite
+    }
+
+    .mic-btn.live-on {
+      background: var(--green);
+      border-color: var(--green);
+      box-shadow: 0 0 20px rgba(34, 197, 94, .4)
+    }
+
+    @keyframes mic-p {
+
+      0%,
+      100% {
+        box-shadow: 0 0 20px rgba(239, 68, 68, .4)
+      }
+
+      50% {
+        box-shadow: 0 0 40px rgba(239, 68, 68, .7)
+      }
+    }
+
+    .mic-ripple {
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      border: 1.5px solid var(--green);
+      opacity: 0;
+      pointer-events: none
+    }
+
+    .mic-btn.live-on+.mic-ripple {
+      opacity: 1;
+      animation: ripple 2s ease-out infinite
+    }
+
+    @keyframes ripple {
+      0% {
+        transform: scale(.8);
+        opacity: .5
+      }
+
+      100% {
+        transform: scale(1.6);
+        opacity: 0
+      }
+    }
+
+    .input-wrap {
+      flex: 1
+    }
+
+    .input-wrap textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14.5px;
+      resize: none;
+      outline: none;
+      min-height: 52px;
+      max-height: 140px;
+      line-height: 1.5;
+      transition: border-color .2s, box-shadow .2s
+    }
+
+    .input-wrap textarea::placeholder {
+      color: var(--muted)
+    }
+
+    .input-wrap textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, .15)
+    }
+
+    .send-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent), var(--pink));
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px var(--glow);
+      transition: all .2s
+    }
+
+    .send-btn:hover {
+      transform: scale(1.08)
+    }
+
+    .send-btn:active {
+      transform: scale(.95)
+    }
+
+    .send-btn:disabled {
+      opacity: .35;
+      cursor: not-allowed;
+      transform: none
+    }
+
+    @media(max-width:600px) {
+      .header {
+        padding: 10px 14px
+      }
+
+      .mem {
+        display: none
+      }
+
+      .chat {
+        padding: 12px 12px 6px
+      }
+
+      .msg {
+        max-width: 86%;
+        font-size: 14px
+      }
+
+      .bottom {
+        padding: 6px 12px 16px
+      }
+
+      .welcome h2 {
+        font-size: 22px
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="avatar">
+        <div class="avatar-pulse"></div>
+        <div class="avatar-ring"></div>
+        <div class="avatar-inner">A</div>
+      </div>
+      <div class="header-info">
+        <div class="header-name">Alita <span class="dot"></span></div>
+        <div class="sub" id="sub">Your AI Partner</div>
+      </div>
+      <div class="controls">
+        <div class="mem">Memories: <span id="mem-c">0</span></div>
+        <button class="ctrl on" id="v-btn" onclick="toggleVoice()">Voice On</button>
+        <button class="ctrl" id="l-btn" onclick="toggleLang()">Hinglish</button>
+        <button class="ctrl" id="live-btn" onclick="toggleLive()">Live Talk</button>
+      </div>
+    </div>
+
+    <div class="chat" id="chat">
+      <div class="welcome" id="welcome">
+        <div class="welcome-orb">A</div>
+        <h2>Hey, I'm Alita</h2>
+        <p>Teri apni AI partner — smart, caring, always here. Type kar ya "Live Talk" ON kar ke baat kar.</p>
+      </div>
+      <div class="typing" id="typing">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    </div>
+
+    <div class="install-banner" id="install-banner">
+      <p></p><button class="close-ib" onclick="this.parentElement.classList.remove('show')">&times;</button>
+    </div>
+    <div class="speak-pill" id="speak-pill">
+      <div class="wave"><span></span><span></span><span></span><span></span><span></span></div>Alita bol rahi hai...
+    </div>
+
+    <!-- iOS: tap here to continue talking after Alita speaks -->
+    <div class="ios-tap" id="ios-tap" onclick="iosTapContinue()">
+      <div class="ios-tap-circle">🎙️</div>
+      <p>Tap to continue talking</p>
+    </div>
+
+    <div class="bottom" id="bottom-bar">
+      <div class="live-status" id="live-status">🟢 Live Talk ON — just speak!</div>
+      <div class="chips" id="chips">
+        <div class="chip" onclick="qSend(this)">Hey Alita</div>
+        <div class="chip" onclick="qSend(this)">Kya kar rahi hai?</div>
+        <div class="chip" onclick="qSend(this)">I need help</div>
+        <div class="chip" onclick="qSend(this)">Bore ho raha hun</div>
+      </div>
+      <div class="input-row">
+        <div class="mic-wrap">
+          <button class="mic-btn" id="mic" onclick="toggleMic()"><span id="mic-i">🎙️</span></button>
+          <div class="mic-ripple"></div>
+        </div>
+        <div class="input-wrap">
+          <textarea id="inp" placeholder="Alita se baat kar..." rows="1" onkeydown="onKey(event)"
+            oninput="resize(this)"></textarea>
+        </div>
+        <button class="send-btn" id="s-btn" onclick="sendMsg()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const chat = document.getElementById('chat'), inp = document.getElementById('inp'), sBtn = document.getElementById('s-btn'),
+      micEl = document.getElementById('mic'), micI = document.getElementById('mic-i'), typing = document.getElementById('typing'),
+      pill = document.getElementById('speak-pill'), chips = document.getElementById('chips'), welcome = document.getElementById('welcome'),
+      memC = document.getElementById('mem-c'), sub = document.getElementById('sub'), vBtn = document.getElementById('v-btn'),
+      lBtn = document.getElementById('l-btn'), liveBtn = document.getElementById('live-btn'), liveSt = document.getElementById('live-status'),
+      bottomBar = document.getElementById('bottom-bar'), iosTapEl = document.getElementById('ios-tap');
+
+    let voiceOn = true, loading = false, recording = false, liveMode = false, curAudio = null, recog = null;
+    let silenceTimer = null, lastTranscript = '';
+    const LANGS = ['hi-IN', 'hi-IN', 'en-IN'], LANG_NAMES = ['Hinglish', 'Hindi', 'English'];
+    let langIdx = 0;
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const SILENCE_MS = 2500; // if no new speech for 2.5s, treat as final
+
+    // ── SPEECH RECOGNITION ──
+    function initRecog() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) { micEl.style.display = 'none'; return }
+      recog = new SR();
+      recog.continuous = false;
+      recog.interimResults = true;
+      recog.lang = LANGS[langIdx];
+      recog.maxAlternatives = 1;
+
+      recog.onstart = () => {
+        recording = true;
+        micEl.classList.add('active');
+        if (liveMode) micEl.classList.add('live-on');
+        micI.textContent = '⏹️';
+        inp.placeholder = 'Sun rahi hun...';
+        setSub(liveMode ? '🟢 Bol... sun rahi hun' : 'Sun rahi hun...');
+        lastTranscript = '';
+        clearTimeout(silenceTimer);
+      };
+
+      recog.onresult = (e) => {
+        let t = '';
+        let hasFinal = false;
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          t += e.results[i][0].transcript;
+          if (e.results[i].isFinal) hasFinal = true;
+        }
+        inp.value = t;
+        resize(inp);
+        lastTranscript = t;
+
+        if (hasFinal) {
+          // Got a final result — send immediately
+          clearTimeout(silenceTimer);
+          setTimeout(sendMsg, 200);
+        } else {
+          // Interim result — start/reset silence timer
+          // If no new result for SILENCE_MS, treat as final (iOS fix)
+          clearTimeout(silenceTimer);
+          silenceTimer = setTimeout(() => {
+            if (lastTranscript.trim().length > 0) {
+              try { recog.stop(); } catch (_) { }
+              setTimeout(sendMsg, 100);
+            }
+          }, SILENCE_MS);
+        }
+      };
+
+      recog.onerror = (e) => {
+        console.warn('Recog err:', e.error);
+        recording = false;
+        micEl.classList.remove('active');
+        clearTimeout(silenceTimer);
+
+        if (e.error === 'not-allowed') { setSub('Mic blocked. Check settings.'); return }
+        if (e.error === 'no-speech' && liveMode) {
+          // No speech — restart listening
+          setTimeout(startListening, 300);
+          return;
+        }
+        if (e.error === 'aborted' && liveMode) {
+          setTimeout(startListening, 500);
+          return;
+        }
+        resetMicUI();
+      };
+
+      recog.onend = () => {
+        recording = false;
+        micEl.classList.remove('active');
+        clearTimeout(silenceTimer);
+
+        // If there's unsent text, send it (safety net for iOS)
+        if (lastTranscript.trim().length > 0 && inp.value.trim().length > 0) {
+          setTimeout(sendMsg, 100);
+          return;
+        }
+
+        if (liveMode && !loading && (!curAudio || curAudio.paused)) {
+          if (isIOS) {
+            // iOS can't auto-restart — show tap overlay
+            showIosTap();
+          } else {
+            setTimeout(startListening, 400);
+          }
+        } else if (!liveMode) {
+          resetMicUI();
+        }
+      };
+    }
+
+    function startListening() {
+      if (!recog || loading) return;
+      if (curAudio && !curAudio.paused) return;
+      iosTapEl.classList.remove('show');
+      try { recog.lang = LANGS[langIdx]; recog.start(); }
+      catch (e) { setTimeout(startListening, 500) }
+    }
+
+    function stopListening() {
+      try { recog.stop(); } catch (_) { }
+      recording = false;
+      clearTimeout(silenceTimer);
+    }
+
+    function resetMicUI() {
+      micEl.classList.remove('active', 'live-on');
+      micI.textContent = liveMode ? '🟢' : '🎙️';
+      inp.placeholder = 'Alita se baat kar...';
+    }
+
+    // ── iOS TAP TO CONTINUE ──
+    function showIosTap() {
+      if (liveMode) iosTapEl.classList.add('show');
+    }
+    function iosTapContinue() {
+      iosTapEl.classList.remove('show');
+      startListening();
+    }
+
+    // ── LIVE TALK ──
+    function toggleLive() {
+      liveMode = !liveMode;
+      if (liveMode) {
+        liveBtn.classList.add('live'); liveBtn.textContent = 'Live ON';
+        liveSt.classList.add('show'); bottomBar.classList.add('live-active');
+        micEl.classList.add('live-on'); micI.textContent = '🟢';
+        voiceOn = true; vBtn.classList.add('on'); vBtn.textContent = 'Voice On';
+        setSub('🟢 Live Talk — just speak!');
+        startListening();
+      } else {
+        liveBtn.classList.remove('live'); liveBtn.textContent = 'Live Talk';
+        liveSt.classList.remove('show'); bottomBar.classList.remove('live-active');
+        micEl.classList.remove('live-on'); iosTapEl.classList.remove('show');
+        stopListening(); resetMicUI(); micI.textContent = '🎙️';
+        setSub('Your AI Partner');
+      }
+    }
+
+    function toggleMic() {
+      if (loading) return;
+      if (liveMode) { toggleLive(); return }
+      if (recording) { stopListening(); resetMicUI() }
+      else startListening();
+    }
+
+    function toggleVoice() {
+      if (liveMode) return;
+      voiceOn = !voiceOn;
+      vBtn.classList.toggle('on', voiceOn);
+      vBtn.textContent = voiceOn ? 'Voice On' : 'Voice Off';
+    }
+
+    function toggleLang() {
+      langIdx = (langIdx + 1) % LANG_NAMES.length;
+      lBtn.textContent = LANG_NAMES[langIdx];
+      if (recog) recog.lang = LANGS[langIdx];
+    }
+
+    // ── AUDIO ──
+    function playAudio(b64, btn) {
+      if (curAudio) {
+        curAudio.pause(); curAudio = null; pill.classList.remove('show');
+        document.querySelectorAll('.replay-btn.playing').forEach(b => { b.classList.remove('playing'); b.textContent = '▶ Replay' });
+      }
+      stopListening();
+      try {
+        const raw = atob(b64), bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+        curAudio = new Audio(URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' })));
+        curAudio.volume = 1.0;
+        if (btn) { btn.classList.add('playing'); btn.textContent = '⏸ Playing' }
+        pill.classList.add('show'); setSub('Bol rahi hun...');
+
+        curAudio.onended = () => {
+          pill.classList.remove('show');
+          if (btn) { btn.classList.remove('playing'); btn.textContent = '▶ Replay' }
+          curAudio = null;
+          if (liveMode) {
+            setSub('🟢 Bol... sun rahi hun');
+            if (isIOS) showIosTap();         // iOS: show tap overlay
+            else setTimeout(startListening, 500); // Android/desktop: auto restart
+          } else setSub('Your AI Partner');
+        };
+        curAudio.onerror = () => { pill.classList.remove('show'); if (liveMode) { if (isIOS) showIosTap(); else setTimeout(startListening, 500) } };
+        curAudio.play().catch(() => { pill.classList.remove('show'); if (liveMode) { if (isIOS) showIosTap(); else setTimeout(startListening, 500) } });
+      } catch (e) { console.error('Play err:', e); if (liveMode) { if (isIOS) showIosTap(); else setTimeout(startListening, 500) } }
+    }
+
+    // ── SEND ──
+    async function sendMsg() {
+      const text = inp.value.trim();
+      if (!text || loading) return;
+      loading = true; sBtn.disabled = true;
+      inp.value = ''; resize(inp); lastTranscript = '';
+      stopListening(); iosTapEl.classList.remove('show');
+      if (welcome) welcome.remove();
+      chips.style.display = 'none';
+      addMsg('user', text);
+      chat.appendChild(typing); typing.classList.add('show');
+      scrollDown(); setSub('Soch rahi hun...');
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, voice_reply: voiceOn }),
+        });
+        const data = await res.json();
+        typing.classList.remove('show');
+        const el = addMsg('alita', data.response, data.audio_base64);
+        memC.textContent = data.memories_used ?? 0;
+        if (voiceOn && data.audio_base64) {
+          const rb = el ? el.querySelector('.replay-btn') : null;
+          playAudio(data.audio_base64, rb);
+        } else {
+          if (liveMode) {
+            setSub('🟢 Bol... sun rahi hun');
+            if (isIOS) showIosTap();
+            else setTimeout(startListening, 400);
+          } else setSub('Your AI Partner');
+        }
+      } catch (err) {
+        typing.classList.remove('show');
+        addMsg('alita', 'Server se connection nahi mila.');
+        setSub('Offline');
+        if (liveMode) setTimeout(startListening, 2000);
+      }
+      loading = false; sBtn.disabled = false; inp.focus();
+    }
+
+    function addMsg(role, text, audio = null) {
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      let rb = '';
+      if (role === 'alita' && audio) rb = '<div class="replay-btn">▶ Replay</div>';
+      div.innerHTML = `<div>${esc(text)}</div>${rb}<div class="msg-time">${time}</div>`;
+      if (role === 'alita' && audio) { const btn = div.querySelector('.replay-btn'); btn.onclick = () => playAudio(audio, btn) }
+      chat.appendChild(div); scrollDown(); return div;
+    }
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML.replace(/\n/g, '<br>') }
+    function scrollDown() { requestAnimationFrame(() => chat.scrollTop = chat.scrollHeight) }
+    function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg() } }
+    function resize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px' }
+    function qSend(c) { inp.value = c.textContent; sendMsg() }
+    function setSub(t) { sub.textContent = t }
+    async function loadStats() { try { const d = await (await fetch('/api/stats')).json(); memC.textContent = d.memory_stats?.vector_memories ?? 0 } catch (_) { } }
+
+    function showInstallBanner() {
+      const ib = document.getElementById('install-banner'), p = ib.querySelector('p');
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+        p.innerHTML = '<strong>Install Alita:</strong> Share ↗ → <strong>"Add to Home Screen"</strong>'; ib.classList.add('show');
+      } else if (/Android/.test(navigator.userAgent)) {
+        p.innerHTML = '<strong>Install Alita:</strong> Menu ⋮ → <strong>"Add to Home Screen"</strong>'; ib.classList.add('show');
+      }
+    }
+
+    // ── INIT ──
+    initRecog(); loadStats(); inp.focus();
+    let initDone = false;
+    function initOnce() { if (!initDone) { initDone = true; if (!window.matchMedia('(display-mode:standalone)').matches && isMobile) showInstallBanner() } }
+    document.addEventListener('click', initOnce); document.addEventListener('touchstart', initOnce);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/static/sw.js').catch(() => { });
+    let dp; window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault(); dp = e; const ib = document.getElementById('install-banner');
+      ib.querySelector('p').innerHTML = '<strong>Install Alita</strong> as an app!'; ib.classList.add('show');
+      ib.querySelector('p').style.cursor = 'pointer';
+      ib.querySelector('p').onclick = async () => { dp.prompt(); await dp.userChoice; ib.classList.remove('show'); dp = null };
+    });
+  </script>
+</body>
+
+</html>

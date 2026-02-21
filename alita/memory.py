@@ -1,188 +1,251 @@
 """
-Memory System for Alita
-Handles all persistent memory: ChromaDB vectors, SQLite chat history, user profile, and reflections.
+Memory System for Alita (Neon DB / Postgres version)
+Handles all persistent memory: exact chat history, user profile, and vector similarity search.
+Completely serverless and ephemeral-safe.
 """
 
 import json
 import os
-import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-import chromadb
-from chromadb.config import Settings
+import psycopg2
+from psycopg2.extras import Json
+from pgvector.psycopg2 import register_vector
+from sentence_transformers import SentenceTransformer
 
-# Base data directory
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# We only keep data_dir for fallback/temp, actual memory is in Postgres
 DATA_DIR = Path(__file__).parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 
 class MemoryManager:
-    """Manages all of Alita's memory systems."""
+    """Manages all of Alita's memory connecting to Neon DB."""
 
     def __init__(self):
-        self.data_dir = DATA_DIR
-        self.profile_path = self.data_dir / "user_profile.json"
-        self.reflections_dir = self.data_dir / "reflections"
-        self.reflections_dir.mkdir(exist_ok=True)
+        self.db_url = os.getenv("DATABASE_URL")
+        if not self.db_url:
+            print("❌ WARNING: DATABASE_URL not found! Memory will not be saved.")
+            self.conn = None
+            return
 
-        # Initialize all memory systems
-        self._init_sqlite()
-        self._init_chromadb()
-        self._load_profile()
+        print("🔄 Connecting to Neon DB Memory...")
+        try:
+            self.conn = psycopg2.connect(self.db_url, application_name="Alita_Partner")
+            self.conn.autocommit = True
+            
+            # Setup tables and pgvector
+            self._init_db()
+            
+            # Initialize embedding model for semantic memory
+            # all-MiniLM-L6-v2 produces 384-dimensional vectors
+            import warnings
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
+            
+            # Load profile from remote DB into memory
+            self._load_profile()
+            print("✅ Neon DB Connected! Memory active.")
+        except Exception as e:
+            print(f"❌ Neon DB connection failed: {e}")
+            self.conn = None
 
-    # ─── SQLite: Chat History ────────────────────────────────────
+    def _init_db(self):
+        """Initialize Postgres tables and extensions."""
+        if not self.conn: return
+        with self.conn.cursor() as cur:
+            # 1. Enable pgvector
+            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            register_vector(self.conn)
 
-    def _init_sqlite(self):
-        """Initialize SQLite database for exact chat history."""
-        db_path = self.data_dir / "chat_history.db"
-        self.db = sqlite3.connect(str(db_path), check_same_thread=False)
-        self.db.execute("""
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                role TEXT NOT NULL,
-                content TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                session_id TEXT,
-                mood TEXT
-            )
-        """)
-        self.db.execute("""
-            CREATE TABLE IF NOT EXISTS sessions (
-                id TEXT PRIMARY KEY,
-                started_at TEXT NOT NULL,
-                summary TEXT
-            )
-        """)
-        self.db.commit()
+            # 2. Chat History Table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id SERIAL PRIMARY KEY,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    session_id TEXT,
+                    mood TEXT
+                );
+            """)
+
+            # 3. Vector Memory Table (for semantic search)
+            # using vector(384) because all-MiniLM-L6-v2 outputs 384 dimensions
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS vector_memories (
+                    id TEXT PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    embedding vector(384),
+                    type TEXT NOT NULL,
+                    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # 4. User Profile Table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_profile (
+                    id INT PRIMARY KEY DEFAULT 1,
+                    data JSONB NOT NULL
+                );
+            """)
+            
+            # 5. Reflections Table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS reflections (
+                    id SERIAL PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+    # ─── Chat History ────────────────────────────────────────────
 
     def save_message(self, role: str, content: str, session_id: str = None, mood: str = None):
-        """Save a message to chat history."""
-        self.db.execute(
-            "INSERT INTO messages (role, content, timestamp, session_id, mood) VALUES (?, ?, ?, ?, ?)",
-            (role, content, datetime.now().isoformat(), session_id, mood),
-        )
-        self.db.commit()
+        """Save a message to exactly chat history and semantic search."""
+        if not self.conn: return
 
-        # Also store in ChromaDB for semantic search
+        # Exact history
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO messages (role, content, session_id, mood) VALUES (%s, %s, %s, %s)",
+                (role, content, session_id, mood)
+            )
+
+        # Vector memory (only for user stuff to keep Alita focused on learning about the user)
         if role == "user":
-            self._store_in_vector_memory(content)
+            self._store_in_vector_memory(content, "user_message")
 
     def get_recent_messages(self, limit: int = 20) -> list[dict]:
-        """Get recent chat messages."""
-        cursor = self.db.execute(
-            "SELECT role, content, timestamp FROM messages ORDER BY id DESC LIMIT ?",
-            (limit,),
-        )
-        rows = cursor.fetchall()
-        rows.reverse()  # Chronological order
-        return [{"role": r[0], "content": r[1], "timestamp": r[2]} for r in rows]
-
-    def get_all_messages_for_session(self, session_id: str) -> list[dict]:
-        """Get all messages from a specific session."""
-        cursor = self.db.execute(
-            "SELECT role, content, timestamp FROM messages WHERE session_id = ? ORDER BY id",
-            (session_id,),
-        )
-        return [{"role": r[0], "content": r[1], "timestamp": r[2]} for r in cursor.fetchall()]
+        """Get recent exact chat messages context."""
+        if not self.conn: return []
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT role, content, timestamp FROM messages ORDER BY id DESC LIMIT %s",
+                (limit,)
+            )
+            rows = cur.fetchall()
+            
+        rows.reverse()
+        return [{"role": r[0], "content": r[1], "timestamp": str(r[2])} for r in rows]
 
     def get_message_count(self) -> int:
-        """Get total number of messages."""
-        cursor = self.db.execute("SELECT COUNT(*) FROM messages")
-        return cursor.fetchone()[0]
+        if not self.conn: return 0
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM messages")
+            return cur.fetchone()[0]
 
-    # ─── ChromaDB: Semantic / Vector Memory ──────────────────────
+    # ─── Vector Semantic Memory ─────────────────────────────────
 
-    def _init_chromadb(self):
-        """Initialize ChromaDB for semantic memory search."""
-        chroma_dir = self.data_dir / "chroma"
-        chroma_dir.mkdir(exist_ok=True)
-        self.chroma_client = chromadb.PersistentClient(path=str(chroma_dir))
-        self.memory_collection = self.chroma_client.get_or_create_collection(
-            name="alita_memories",
-            metadata={"description": "All of Alita's memories about the user"},
-        )
+    def _store_in_vector_memory(self, text: str, mem_type: str):
+        """Store text with its vector embedding in Neon."""
+        if not self.conn: return
+        try:
+            vector = self.embedder.encode(text).tolist()
+            doc_id = f"{mem_type}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+            
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO vector_memories (id, content, embedding, type) VALUES (%s, %s, %s, %s)",
+                    (doc_id, text, vector, mem_type)
+                )
+        except Exception as e:
+            print(f"Vector save error: {e}")
 
-    def _store_in_vector_memory(self, text: str):
-        """Store a piece of text in vector memory for semantic recall."""
-        doc_id = f"msg_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
-        self.memory_collection.add(
-            documents=[text],
-            ids=[doc_id],
-            metadatas=[{"timestamp": datetime.now().isoformat(), "type": "user_message"}],
-        )
-
-    def recall_memories(self, query: str, n_results: int = 5) -> list[str]:
-        """Search for relevant memories based on a query."""
-        if self.memory_collection.count() == 0:
+    def recall_memories(self, query: str, n_results: int = 3) -> list[str]:
+        """Search via cosine similarity inside Postgres."""
+        if not self.conn: return []
+        try:
+            query_vector = self.embedder.encode(query).tolist()
+            
+            with self.conn.cursor() as cur:
+                # <-> is the Euclidean distance operator in pgvector, which works great
+                # <=> is cosine distance which is also excellent for semantic search
+                cur.execute("""
+                    SELECT content, timestamp 
+                    FROM vector_memories 
+                    ORDER BY embedding <=> %s::vector 
+                    LIMIT %s;
+                """, (query_vector, n_results))
+                
+                rows = cur.fetchall()
+                
+            memories = []
+            for row in rows:
+                content, timestamp = row
+                try:
+                    time_str = timestamp.strftime("%b %d, %Y at %I:%M %p")
+                except:
+                    time_str = str(timestamp)
+                memories.append(f"[{time_str}] {content}")
+                
+            return memories
+        except Exception as e:
+            print(f"Memory recall error: {e}")
             return []
 
-        results = self.memory_collection.query(
-            query_texts=[query],
-            n_results=min(n_results, self.memory_collection.count()),
-        )
-
-        memories = []
-        if results and results["documents"]:
-            for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
-                timestamp = meta.get("timestamp", "unknown time")
-                # Format nicely
-                try:
-                    dt = datetime.fromisoformat(timestamp)
-                    time_str = dt.strftime("%b %d, %Y at %I:%M %p")
-                except Exception:
-                    time_str = timestamp
-                memories.append(f"[{time_str}] {doc}")
-
-        return memories
-
-    # ─── User Profile: Core Memory ───────────────────────────────
+    # ─── User Profile ───────────────────────────────────────────
 
     def _load_profile(self):
-        """Load or create the user profile."""
-        if self.profile_path.exists():
-            with open(self.profile_path, "r", encoding="utf-8") as f:
-                self.user_profile = json.load(f)
-        else:
-            self.user_profile = {
-                "name": None,
-                "nickname": None,
-                "birthday": None,
-                "personality_notes": None,
-                "current_goals": [],
-                "likes": [],
-                "dislikes": [],
-                "relationships": {},
-                "recent_mood": None,
-                "important_dates": {},
-                "extra_notes": [],
-                "last_updated": None,
-            }
-            self._save_profile()
+        """Load profile from DB."""
+        if not self.conn: 
+            self._init_empty_profile()
+            return
+            
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT data FROM user_profile WHERE id = 1")
+            row = cur.fetchone()
+            
+            if row:
+                self.user_profile = row[0]
+            else:
+                self._init_empty_profile()
+
+    def _init_empty_profile(self):
+        self.user_profile = {
+            "name": None,
+            "nickname": None,
+            "birthday": None,
+            "personality_notes": None,
+            "current_goals": [],
+            "likes": [],
+            "dislikes": [],
+            "relationships": {},
+            "recent_mood": None,
+            "important_dates": {},
+            "extra_notes": [],
+        }
+        self._save_profile()
 
     def _save_profile(self):
-        """Save the user profile to disk."""
+        """Save JSON profile to Neon DB."""
+        if not self.conn: return
         self.user_profile["last_updated"] = datetime.now().isoformat()
-        with open(self.profile_path, "w", encoding="utf-8") as f:
-            json.dump(self.user_profile, f, indent=2, ensure_ascii=False)
+        
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO user_profile (id, data) 
+                VALUES (1, %s)
+                ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data;
+            """, (Json(self.user_profile),))
 
     def get_profile(self) -> dict:
-        """Get the current user profile."""
-        return self.user_profile.copy()
+        return getattr(self, "user_profile", {}).copy()
 
     def update_profile(self, new_profile: dict):
-        """Update the user profile with new information."""
-        # Merge: keep existing data, add new
+        if not hasattr(self, "user_profile"): return
+        
         for key, value in new_profile.items():
-            if key == "last_updated":
-                continue
+            if key == "last_updated": continue
             if isinstance(value, list):
-                # Merge lists, avoid duplicates
                 existing = set(self.user_profile.get(key, []) or [])
                 new_items = set(value or [])
                 self.user_profile[key] = list(existing | new_items)
             elif isinstance(value, dict):
-                # Merge dicts
                 existing = self.user_profile.get(key, {}) or {}
                 existing.update(value or {})
                 self.user_profile[key] = existing
@@ -191,40 +254,39 @@ class MemoryManager:
 
         self._save_profile()
 
-    # ─── Reflections: Alita's Diary ──────────────────────────────
+    # ─── Reflections ────────────────────────────────────────────
 
     def save_reflection(self, reflection: str):
-        """Save a reflection (diary entry) from Alita."""
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        time_str = datetime.now().strftime("%H:%M")
-        filepath = self.reflections_dir / f"{date_str}.md"
-
-        with open(filepath, "a", encoding="utf-8") as f:
-            f.write(f"\n## {time_str}\n{reflection}\n")
-
-        # Also store in vector memory for recall
-        self.memory_collection.add(
-            documents=[reflection],
-            ids=[f"reflection_{datetime.now().strftime('%Y%m%d_%H%M%S')}"],
-            metadatas=[{"timestamp": datetime.now().isoformat(), "type": "reflection"}],
-        )
+        if not self.conn: return
+        
+        with self.conn.cursor() as cur:
+            cur.execute("INSERT INTO reflections (content) VALUES (%s)", (reflection,))
+            
+        # Also vector memory
+        self._store_in_vector_memory(reflection, "reflection")
 
     def get_recent_reflections(self, limit: int = 5) -> list[str]:
-        """Get recent reflections."""
-        reflections = []
-        files = sorted(self.reflections_dir.glob("*.md"), reverse=True)
-        for f in files[:limit]:
-            with open(f, "r", encoding="utf-8") as fp:
-                reflections.append(fp.read().strip())
-        return reflections
-
-    # ─── Utility ─────────────────────────────────────────────────
+        if not self.conn: return []
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT content FROM reflections ORDER BY id DESC LIMIT %s", (limit,))
+            rows = cur.fetchall()
+            return [r[0] for r in rows]
 
     def get_memory_stats(self) -> dict:
-        """Get statistics about Alita's memory."""
+        if not self.conn: return {}
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM messages")
+            msg_count = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM vector_memories")
+            vec_count = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM reflections")
+            ref_count = cur.fetchone()[0]
+            
         return {
-            "total_messages": self.get_message_count(),
-            "vector_memories": self.memory_collection.count(),
-            "profile_filled": sum(1 for v in self.user_profile.values() if v),
-            "reflections": len(list(self.reflections_dir.glob("*.md"))),
+            "total_messages": msg_count,
+            "vector_memories": vec_count,
+            "profile_filled": sum(1 for v in self.get_profile().values() if v),
+            "reflections": ref_count,
         }

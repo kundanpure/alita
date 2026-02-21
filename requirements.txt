@@ -8,8 +8,9 @@ pydantic==2.10.4
 groq==0.15.0
 google-genai==1.5.0
 
-# Memory
-chromadb==0.6.3
+# Memory (Postgres + pgvector)
+psycopg2-binary==2.9.9
+pgvector==0.2.5
 sentence-transformers==3.4.1
 
 # Voice (Phase 2)
